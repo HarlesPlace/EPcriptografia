@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def indexPage():
-    return('<h1> Bem vindo ao servidor! </h1> <hr> <p><a href="./create">Criar usuário</a> </p><br><p><a href="./login">Fazer Login</a></p> <hr> <p><a href="./home">Página Principal</a> </p>')
+    return('<h1> Bem vindo ao servidor! </h1> <hr> <p><a href="./create">Criar usuário</a> </p><br><p><a href="./login">Fazer Login</a></p> <br> <p><a href="./home">Página Principal</a> </p>')
 
 @app.route('/create', methods=['GET', 'POST'])
 def userCreatePage():
@@ -22,7 +22,7 @@ def userCreatePage():
 
 @app.route('/login',methods=['GET', 'POST'])
 def loginPage():
-    user_cookie = request.cookies.get('user')
+    user_cookie = request.cookies.get('user_id')
     if request.method=="GET":
         if not user_cookie:
             return('<h1>Fazer Login</h1> <hr> <form action="/login" method="POST"><label>Email:</label><input type="text" name="email"><br><label>Senha:</label><input type="password" name="password"><br><button type="submit">Login</button></form>'),200
@@ -37,7 +37,7 @@ def loginPage():
         user_password=user.password
         if password==user_password:
             user_id = redirect(url_for('homePage'))
-            user_id.set_cookie('user', str(user.id)) 
+            user_id.set_cookie('user_id', str(user.id)) 
             return user_id, 302
         else:
             return f'<h1>Credenciais não batem</h1><hr><p><a href="./login">Tentar Novamente</a></p>',401
@@ -46,20 +46,20 @@ def loginPage():
 def logoutPage():
     if request.method=="POST":
         res = make_response("Logout done")
-        res.set_cookie('user', 'qualquer_coisa', max_age=0)
+        res.set_cookie('user_id', 'identificação expirada', max_age=0)
         return res,200
     else:
-        user_cookie = request.cookies.get('user')
+        user_cookie = request.cookies.get('user_id')
         user = User.query.filter_by(id=user_cookie).first()
         k=make_response (f'<h1>Logado como { user.name }</h1><hr><form action="/logout" method="POST"><button type="submit">LogOut</button></form>') 
         return k,200
 
 @app.route('/home')      
 def homePage():
-    user_cookie = request.cookies.get('user')
+    user_cookie = request.cookies.get('user_id')
     if user_cookie:
         user = User.query.filter_by(id=user_cookie).first()
-        return (f'<h1>Usuário {user.name} logado!</h1>')
+        return (f'<h1>Usuário {user.name} logado!</h1><hr><p><a href="./logout">Para fazer logout!</a></p>')
     else:
         abort(401)
 
