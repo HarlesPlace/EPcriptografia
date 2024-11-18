@@ -26,6 +26,12 @@ def userCreatePage():
         user = User(name=name, email=email, password=b64encode(salt+digest).decode('ascii'))
         db.session.add(user)
         db.session.commit()
+        print("----------------------------")
+        print("Senha Original: "+password)
+        print("Salt(x0): "+str(salt.hex()))
+        print("Digest(x0): "+str(digest.hex()))
+        print("Valor Salvo: "+user.password)
+        print("----------------------------")
         return make_response(f'<h1> Usuário {user.name} Cadastrado com Sucesso </h1><hr><p><a href="./create">Realizar outro cadastro</a></p>'),201
 
 @app.route('/login',methods=['GET', 'POST'])
@@ -63,7 +69,10 @@ def loginPage():
         db.session.add(sessionData)
         db.session.commit()
         page = redirect(url_for('homePage'))
-        page.set_cookie('session_id', session_id) 
+        page.set_cookie('session_id', session_id)
+        print("----------------------------")
+        print("Id da sessão: "+session_id)
+        print("----------------------------")
         return page, 302
            
 @app.route('/logout',methods=['GET', 'POST'])
