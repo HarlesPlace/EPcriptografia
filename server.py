@@ -6,18 +6,22 @@ from cryptography.exceptions import InvalidKey
 from cryptography.hazmat.backends import default_backend
 from base64 import b64encode, b64decode
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import hashes,hmac
+from cryptography.hazmat.primitives import hashes,hmac,serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
-class EncryptionManager():
+with open("serverPrivate_key.pem", "rb") as private_key_file_object:
+    private_key = serialization.load_pem_private_key(private_key_file_object.read(),backend = default_backend(), password = None)
+    
+class DecryptionManager():
     def __init__(self,key,iv):
         aes_context = Cipher(algorithms.AES(key), modes.CTR(iv), backend=default_backend())
         self.encryptor = aes_context.encryptor()
         self.decryptor = aes_context.decryptor()
         
-    def updateDecryptor(self, ciphertext):
+    def updateDecryptorAES(self, ciphertext):
         return self.decryptor.update(ciphertext)
     
-    def finalizeDecryptor(self):
+    def finalizeDecryptorAES(self):
         return self.decryptor.finalize()
 
 app = Flask(__name__)
@@ -65,12 +69,16 @@ def loginPage():
                 return res,200
     elif request.method=="POST":
         session_keysB64=request.form['session_keys']
-        session_keys=b64decode(session_keysB64.encode('ascii'))
+        session_keysCriptografadas=b64decode(session_keysB64.encode('ascii'))
         cyphertextB64=request.form['cyphertext']
         cyphertext=b64decode(cyphertextB64.encode('ascii'))
         hmacB64=request.form['hmac']
         hmacRecebido=b64decode(hmacB64.encode('ascii'))
 
+        session_keys = private_key.decrypt(session_keysCriptografadas,
+            padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(), label=None))
+        
         key= session_keys[:32]
         iv= session_keys[32:48]
         mac= session_keys[48:]
@@ -81,14 +89,13 @@ def loginPage():
         print("HMAC: "+str(hmacB64))
         print("----------------------------")
 
-        manager = EncryptionManager(key,iv)
-        emailSenha=manager.updateDecryptor(cyphertext)
+        manager = DecryptionManager(key,iv)
+        emailSenha=manager.updateDecryptorAES(cyphertext)
 
-        manager.finalizeDecryptor()
+        manager.finalizeDecryptorAES()
         hmacValid = hmac.HMAC(mac, hashes.SHA256(), backend=default_backend()) 
-        hmacValid.update(emailSenha)
+        hmacValid.update(session_keysCriptografadas+emailSenha)
         hmacSaida=hmacValid.finalize()
-        print("HmacValid: ",hmacSaida)
        
         if hmacSaida==hmacRecebido:
             print("HMAC VÁLIDO")
