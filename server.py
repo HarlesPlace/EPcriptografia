@@ -5,6 +5,20 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.exceptions import InvalidKey
 from cryptography.hazmat.backends import default_backend
 from base64 import b64encode, b64decode
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import hashes,hmac
+
+class EncryptionManager():
+    def __init__(self,key,iv):
+        aes_context = Cipher(algorithms.AES(key), modes.CTR(iv), backend=default_backend())
+        self.encryptor = aes_context.encryptor()
+        self.decryptor = aes_context.decryptor()
+        
+    def updateDecryptor(self, ciphertext):
+        return self.decryptor.update(ciphertext)
+    
+    def finalizeDecryptor(self):
+        return self.decryptor.finalize()
 
 app = Flask(__name__)
 
@@ -50,30 +64,58 @@ def loginPage():
             else:
                 return res,200
     elif request.method=="POST":
-        email = request.form['email']
-        password = request.form['password']
-        user = User.query.filter_by(email=email).first_or_404(description=f'Email não cadastrado')
-        user_password=user.password
-        saltDigest = b64decode(user_password.encode('ascii'))
-        salt = saltDigest[:16]
-        digest = saltDigest[16:]
-        kdf = Scrypt(salt =salt, length =32, n=2**14, r=8, p=1, backend=default_backend())
-        try:
-            kdf.verify(password.encode('utf-8'), digest)
-            print("Senhas batem!")
-        except InvalidKey:
-            print("Senhas não batem!")
-            return f'<h1>Credenciais não batem</h1><hr><p><a href="./login">Tentar Novamente</a></p>',401
-        session_id=b64encode(hashlib.md5(os.urandom(16)).digest()).decode('ascii')
-        sessionData=Session(id=session_id,user_id=user.id)
-        db.session.add(sessionData)
-        db.session.commit()
-        page = redirect(url_for('homePage'))
-        page.set_cookie('session_id', session_id)
+        session_keysB64=request.form['session_keys']
+        session_keys=b64decode(session_keysB64.encode('ascii'))
+        cyphertextB64=request.form['cyphertext']
+        cyphertext=b64decode(cyphertextB64.encode('ascii'))
+        hmacB64=request.form['hmac']
+        hmacRecebido=b64decode(hmacB64.encode('ascii'))
+
+        key= session_keys[:32]
+        iv= session_keys[32:48]
+        mac= session_keys[48:]
+
         print("----------------------------")
-        print("Id da sessão: "+session_id)
+        print("Sessions Keys: "+str(session_keysB64))
+        print("Cyphertext: "+str(cyphertextB64))
+        print("HMAC: "+str(hmacB64))
         print("----------------------------")
-        return page, 302
+
+        manager = EncryptionManager(key,iv)
+        emailSenha=manager.updateDecryptor(cyphertext)
+
+        manager.finalizeDecryptor()
+        hmacValid = hmac.HMAC(mac, hashes.SHA256(), backend=default_backend()) 
+        hmacValid.update(emailSenha)
+        hmacSaida=hmacValid.finalize()
+        print("HmacValid: ",hmacSaida)
+       
+        if hmacSaida==hmacRecebido:
+            print("HMAC VÁLIDO")
+            email,password=emailSenha.decode('utf-8').split("^")
+            user = User.query.filter_by(email=email).first_or_404(description=f'Email não cadastrado')
+            user_password=user.password
+            saltDigest = b64decode(user_password.encode('ascii'))
+            salt = saltDigest[:16]
+            digest = saltDigest[16:]
+            kdf = Scrypt(salt =salt, length =32, n=2**14, r=8, p=1, backend=default_backend())
+            try:
+                kdf.verify(password.encode('utf-8'), digest)
+            except InvalidKey:
+                return f'<h1>Credenciais não batem</h1><hr><p><a href="./login">Tentar Novamente</a></p>',401
+            session_id=b64encode(hashlib.md5(os.urandom(16)).digest()).decode('ascii')
+            sessionData=Session(id=session_id,user_id=user.id)
+            db.session.add(sessionData)
+            db.session.commit()
+            page = redirect(url_for('homePage'))
+            page.set_cookie('session_id', session_id)
+            print("----------------------------")
+            print("Id da sessão: "+session_id)
+            print("----------------------------")
+            return page, 302
+        else:
+            return f'<h1>Perigo!!! Dados alterados</h1><hr>',401
+
            
 @app.route('/logout',methods=['GET', 'POST'])
 def logoutPage():

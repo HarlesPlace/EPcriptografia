@@ -6,11 +6,9 @@ import os, requests
 
 class EncryptionManager:
     def __init__(self):
-        key = os.urandom(32)
-        IV = os.urandom(16)
-        print("Key: "+str(key))
-        print("IV: "+str(IV))
-        aes_context = Cipher(algorithms.AES(key), modes.CTR(IV), backend=default_backend())
+        self.key = os.urandom(32)
+        self.IV = os.urandom(16)
+        aes_context = Cipher(algorithms.AES(self.key), modes.CTR(self.IV), backend=default_backend())
         self.encryptor = aes_context.encryptor()
         self.decryptor = aes_context.decryptor()
     
@@ -26,7 +24,6 @@ class EncryptionManager:
     def finalizeDecryptor(self):
         return self.decryptor.finalize()
 
-# Auto generate key/IV for encryption
 manager = EncryptionManager()
 mac = os.urandom(32)
 
@@ -34,7 +31,10 @@ email = input("Digite seu email: ")
 senha = input("Digite sua senha: ")
 
 plaintexts = [(email+"^"+senha).encode('utf-8')]
-print(plaintexts)
+
+hmacCriado = hmac.HMAC(mac, hashes.SHA256(), backend=default_backend()) 
+hmacCriado.update(plaintexts[0]) 
+hmacSaida=hmacCriado.finalize()
 
 ciphertexts = []
 
@@ -42,16 +42,15 @@ for m in plaintexts:
     ciphertexts.append(manager.updateEncryptor(m))
 ciphertexts.append(manager.finalizeEncryptor())
 
-print("cifrados:")
-print(ciphertexts)
-print(ciphertexts[0])
+print("----------------------------")
+print("Sessions Keys: "+str(b64encode(manager.key+manager.IV+mac).decode('ascii')))
+print("Cyphertext: "+str(b64encode(ciphertexts[0]).decode('ascii')))
+print("HMAC: "+str(b64encode(hmacSaida).decode('ascii')))
+print("----------------------------")
 
-hmac = hmac.HMAC(mac, hashes.SHA256(), backend=default_backend()) 
-hmac.update() 
-hmac.finalize(ciphertexts[0])
-r = requests.post('http://localhost:5000/login', data={'session_keys': b64encode(manager.key+manager.key+mac).decode('ascii'),'cyphertext': b64encode(ciphertexts[0]).decode('ascii'),'hmac': b64encode(hmac).decode('ascii')})
-r.status_code
+r = requests.post('http://localhost:5000/login', data={'session_keys': b64encode(manager.key+manager.IV+mac).decode('ascii'),'cyphertext': b64encode(ciphertexts[0]).decode('ascii'),'hmac': b64encode(hmacSaida).decode('ascii')},allow_redirects=False)
+print(r.status_code)
 r.cookies['session_id']
-#for c in ciphertexts:
-#    print("Recovered", manager.updateDecryptor(c))
-#print("Recovered", manager.finalizeDecryptor())
+print("session_id: ",r.cookies['session_id'])
+r = requests.get('http://localhost:5000/home', cookies={'session_id': r.cookies['session_id']})
+print(r.status_code)
