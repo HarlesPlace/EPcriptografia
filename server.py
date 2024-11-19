@@ -123,7 +123,6 @@ def loginPage():
         else:
             return f'<h1>Perigo!!! Dados alterados</h1><hr>',401
 
-           
 @app.route('/logout',methods=['GET', 'POST'])
 def logoutPage():
     session_cookie = request.cookies.get('session_id')
@@ -150,6 +149,12 @@ def homePage():
             abort(401)
     else:
         abort(401)
+
+@app.route('/certificado')      
+def certPage():
+    with open("autoAssinadoServer_cert.crt", "rb") as cert_file:
+        cert_content = cert_file.read()
+    return make_response(cert_content),200
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db.sqlite3')
