@@ -37,7 +37,7 @@ class EncryptionManager:
     def __init__(self,recv_public_key):
         self.key = os.urandom(32)
         self.IV = os.urandom(16)
-        self.recv_public_key = serialization.load_pem_public_key(recv_public_key,backend=default_backend())
+        self.recv_public_key=recv_public_key
         aes_context = Cipher(algorithms.AES(self.key), modes.CTR(self.IV), backend=default_backend())
         self.encryptor = aes_context.encryptor()
     

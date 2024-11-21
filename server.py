@@ -152,7 +152,7 @@ def homePage():
 
 @app.route('/certificado')      
 def certPage():
-    with open("autoAssinadoServer_cert.crt", "rb") as cert_file:
+    with open("aluno_cert.crt", "rb") as cert_file:
         cert_content = cert_file.read()
     return make_response(cert_content),200
 
